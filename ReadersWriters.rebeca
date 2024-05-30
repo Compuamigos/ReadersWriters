@@ -1,0 +1,182 @@
+reactiveclass Writer(2) {
+    knownrebecs {
+        Controller c;
+    }
+
+    statevars {
+        int id;
+        boolean onCritic;
+    }
+
+    Writer(int w_id) {
+        id = w_id;
+        onCritic = false;
+        self.RequestWrite();
+    }
+
+    msgsrv RequestWrite() {
+        c.WriterRequest(self.id);
+    }
+
+    msgsrv Allowed() {
+        onCritic = true;
+        self.Written();
+    }
+
+    msgsrv Written() {
+        onCritic = false;
+        c.WriterAbandon();
+        self.RequestWrite();
+    }
+}
+
+reactiveclass Reader(2) {
+    knownrebecs {
+        Controller c;
+    }
+
+    statevars {
+        int id;
+        boolean onCritic;
+    }
+
+    Reader(int r_id) {
+        id = r_id;
+        onCritic = false;
+        self.RequestRead();
+    }
+
+    msgsrv RequestRead() {
+        c.ReaderRequest(self.id);
+    }
+
+    msgsrv Allowed() {
+        onCritic = true;
+        self.Read();
+    }
+
+    msgsrv Read() {
+        onCritic = false;
+        c.ReaderAbandon();
+        self.RequestRead();
+    }
+}
+
+reactiveclass Controller (7) {
+    knownrebecs {
+        Writer w1;
+        Reader r1, r2, r3;
+    }
+
+    statevars {
+        int max_readers, readers;
+        boolean writer;
+        int fstInLine, sndInLine, trdInLine;
+    }
+
+    void updateLine() {
+        fstInLine = sndInLine;
+        sndInLine = trdInLine;
+        trdInLine = 0;
+    }
+
+    Controller()  {
+        max_readers = 2;
+        readers = 0;
+        writer = false;
+    }
+
+    msgsrv ReaderRequest(int rId) {
+        if (fstInLine == 0 && readers < max_readers && !writer) {
+            readers = readers + 1;
+            ((Reader)sender).Allowed();
+        } else {
+            if (fstInLine == 0) {
+                fstInLine = rId;
+            } else {
+                if (sndInLine == 0) {
+                    sndInLine = rId;
+                } else {
+                    trdInLine = rId;
+                }
+            }
+        }
+    }
+
+    msgsrv WriterRequest(int wId) {
+        if(readers == 0) {
+            w1.Allowed();
+            writer = true;
+        } else {
+            if (fstInLine == 0) {
+                fstInLine = wId;
+            } else {
+                if (sndInLine == 0) {
+                    sndInLine = wId;
+                } else {
+                    trdInLine = wId;
+                }
+            }
+        }
+    }
+
+    msgsrv ReaderAbandon() {
+        readers = readers - 1;
+        if(fstInLine > 0){
+            if (fstInLine == 4 && readers == 0) {
+                w1.Allowed();
+                writer = true;
+                self.updateLine();
+            } else {
+                if (fstInLine == 1) {
+                    readers = readers + 1;
+                    r1.Allowed();
+                    self.updateLine();
+                } else {
+                    if (fstInLine == 2) {
+                        readers = readers + 1;
+                        r2.Allowed();
+                        self.updateLine();
+                    } else {
+                        if (fstInLine == 3) {
+                            readers = readers + 1;
+                            r3.Allowed();
+                            self.updateLine();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    msgsrv WriterAbandon() {
+        writer = false;
+        for (int i=0; i<2; i++) {
+            if(fstInLine > 0 && readers < max_readers) {
+                readers = readers + 1;
+                if (fstInLine == 1) {
+                    r1.Allowed();
+                } else {
+                    if (fstInLine == 2) {
+                        r2.Allowed();
+                    } else {
+                        if (fstInLine == 3) {
+                            r3.Allowed();
+                        }
+                    }
+                }
+                self.updateLine();
+            }
+        }
+    }
+}
+
+main {
+    Reader r1(c):(1);
+    Reader r2(c):(2);
+    Reader r3(c):(3);
+
+    Writer w1(c):(4);
+
+    Controller c(w1, r1, r2, r3):();
+}

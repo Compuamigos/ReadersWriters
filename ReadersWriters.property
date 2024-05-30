@@ -1,0 +1,19 @@
+property {
+    define {
+        r1OnCritic = (r1.onCritic == true);
+        r2OnCritic = (r2.onCritic == true);
+        r3OnCritic = (r3.onCritic == true);
+        w1OnCritic = (w1.onCritic == true);
+    }
+
+    Assertion {
+        ReadersLimitInController: c.readers < 3;
+        ReadersLimit: !(r1OnCritic && r2OnCritic && r3OnCritic);
+        NoReaderAndWriter: !(w1OnCritic && (r1OnCritic || r2OnCritic || r3OnCritic));
+        NoReaderAndWriterInController: !(c.writer && c.readers > 0);
+    }
+
+    LTL {
+        NoStarvation: G(F(r1OnCritic) && F(r2OnCritic) && F(r3OnCritic) && F(w1OnCritic));
+    }
+}
